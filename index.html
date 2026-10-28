@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Pitnew — protótipo de física</title>
+  <style>
+    body { margin: 0; background: #1b1b1f; color: #e9e9ef; font: 14px system-ui, sans-serif; }
+    main { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; }
+    canvas { background: #0c2a4a; image-rendering: pixelated; width: 640px; height: 300px; }
+    #hud { display: flex; gap: 18px; }
+    #ajuda { color: #9a9aa8; }
+  </style>
+</head>
+<body>
+<main>
+  <div id="hud"><span id="relogio"></span><span id="pontos"></span><span id="posicao"></span><span id="estado"></span></div>
+  <canvas id="tela" width="160" height="75"></canvas>
+  <div id="ajuda">Setas: andar · seta para baixo: segurar no cipó · Espaço ou Z: pular · R: reiniciar (RESET) · protótipo de física, arte provisória</div>
+  <label>Cenário: <select id="cenario"></select></label>
+  <div id="lacunas" style="color:#9a9aa8; max-width:640px; font-size:12px;"></div>
+</main>
+<script src="fisica.js"></script>
+<script src="cenarios.js"></script>
+<script>
+  (function () {
+    const F = window.Fisica;
+    const C = F.constantes;
+    const CEN = window.Cenarios;
+    const tela = document.getElementById('tela');
+    const ctx = tela.getContext('2d');
+    const seletor = document.getElementById('cenario');
+    CEN.CENARIOS.forEach((c) => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.nome; seletor.appendChild(o); });
+    document.getElementById('lacunas').textContent = 'Fora do protótipo: ' + CEN.LACUNAS.join(' ');
+    let cenarioAtual = CEN.CENARIOS[0];
+    function novo() { return CEN.criarJogo(F, cenarioAtual); }
+    seletor.addEventListener('change', () => { cenarioAtual = CEN.CENARIOS.find((c) => c.id === seletor.value); j = novo(); seletor.blur(); });
+    let j = novo();
+    const teclas = {};
+    addEventListener('keydown', (e) => { teclas[e.code] = true; if (e.code === 'KeyR') j = novo(); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
+    addEventListener('keyup', (e) => { teclas[e.code] = false; });
+    const sorteio = () => ({ tipo: Math.floor(Math.random() * 8), variante: Math.floor(Math.random() * 8) });
+    function entrada() {
+      return {
+        direita: !!teclas.ArrowRight,
+        esquerda: !!teclas.ArrowLeft,
+        fogo: !!(teclas.Space || teclas.KeyZ),
+        baixo: !!teclas.ArrowDown,
+      };
+    }
+    function desenhar() {
+      ctx.clearRect(0, 0, 160, 75);
+      ctx.fillStyle = '#2f5d3a'; ctx.fillRect(0, 60, 160, 15); // chão (provisório)
+      // buracos (provisórios): escuro para o letal, cinza para o não letal
+      for (const b of j.buracos) { ctx.fillStyle = b.letal ? '#3a0000' : '#444'; ctx.fillRect(b.ini - C.X_MIN, 60, b.fim - b.ini, 15); }
+      // Harry (retângulo provisório). Altura em pixels = altura do jogo, invertida (0x20 = chão).
+      const y = 60 - (C.CHAO - j.E9) * 1.5;
+      ctx.fillStyle = j.morto ? '#888' : '#f2c14e';
+      ctx.fillRect(j.X - C.X_MIN, Math.min(y, 58) - 10, 6, 10);
+    }
+    let ultimo = 0, acumulado = 0;
+    function quadro(t) {
+      acumulado += t - ultimo; ultimo = t;
+      while (acumulado >= 1000 / 60) { acumulado -= 1000 / 60; F.passo(j, entrada(), sorteio); }
+      desenhar();
+      document.getElementById('relogio').textContent = 'Relógio ' + F.formatarRelogio(j) + (j.tempoEsgotado ? ' (esgotado)' : '');
+      document.getElementById('pontos').textContent = 'Pontos ' + j.pontos;
+      document.getElementById('posicao').textContent = 'X 0x' + j.X.toString(16).padStart(2, '0');
+      const estado = j.morto ? 'morto' : j.subterraneo ? 'subterrâneo' : j.caindo ? 'caindo' : j.pulando ? 'pulando' : 'no chão';
+      document.getElementById('estado').textContent = 'Estado ' + estado;
+      requestAnimationFrame(quadro);
+    }
+    requestAnimationFrame((t) => { ultimo = t; quadro(t); });
+  })();
+</script>
+</body>
+</html>
